@@ -51,7 +51,7 @@ Rückgabe:
     return pd.DataFrame(rows, columns=INPUT_COLUMNS)
 
 def format_minutes(minutes: float) -> str:
-"""
+    """
 Argumente:
     minutes (float):
         Zeit in Minuten
@@ -60,7 +60,7 @@ Rückgabe:
     str:
         Formatierte Zeit als "X h YY min"
         -> mit divmod (*Anzahl der Minuten, 60) (durch 60 geteilt werden)
-"""
+    """
 
     total_minutes = int(round(minutes))
     hours, mins = divmod(total_minutes, 60)
@@ -68,7 +68,7 @@ Rückgabe:
 
 
 def validate_frame(frame: pd.DataFrame, source_name: str) -> list[str]:
-"""
+    """
 Argumente:
     frame (pd.DataFrame):
         Eingelesene CSV-Daten
@@ -78,7 +78,7 @@ Argumente:
 Rückgabe:
     list[str]:
         Liste von Fehler- oder Warnmeldungen
-"""
+    """
 
     issues: list[str] = []
     missing = [column for column in INPUT_COLUMNS if column not in frame.columns]
@@ -103,7 +103,7 @@ def has_required_columns(frame: pd.DataFrame) -> bool:
     return set(INPUT_COLUMNS).issubset(frame.columns)
 
 def add_calculated_columns(frame: pd.DataFrame) -> pd.DataFrame:
-"""
+    """
 Argumente:
     frame (pd.DataFrame):
         Rohdaten
@@ -113,7 +113,7 @@ Rückgabe:
         Daten mit berechneten Spalten:
         - weekly_app_minutes
         - weekly_total_minutes
-"""
+    """
     
     data = frame.copy()
     data["day_date"] = pd.to_datetime(data["day_date"], errors="coerce")
@@ -141,7 +141,7 @@ Rückgabe:
     return data.drop(columns=["week_start"])
 
 def parse_data(frames: list[pd.DataFrame]) -> pd.DataFrame:
-"""
+    """
 Argumente:
     frames (list[pd.DataFrame]):
         Liste von DataFrames
@@ -149,7 +149,7 @@ Argumente:
 Rückgabe:
     pd.DataFrame:
         Zusammengeführte und bereinigte Daten
-"""
+    """
 
     data = pd.concat([add_calculated_columns(frame) for frame in frames], ignore_index=True)
     data["day_date"] = pd.to_datetime(data["day_date"], errors="coerce")
@@ -166,8 +166,7 @@ Rückgabe:
 
 def read_weekly_csvs(data_dir: Path, uploaded_files
 ) -> tuple[pd.DataFrame, list[str], list[str], list[str]]:
-
-"""
+    """
 Argumente:
     data_dir (Path):
         Ordner mit CSV-Dateien
@@ -180,7 +179,7 @@ Rückgabe:
         - list[str] (Warnungen)
         - list[str] (geladene Dateien)
         - list[str] (Fehler)
-"""
+    """
     
     csv_files = sorted(data_dir.glob("*.csv")) if data_dir.exists() else []
     uploaded_files = uploaded_files or []
@@ -233,6 +232,7 @@ def build_week_selector_options(data: pd.DataFrame) -> list[str]:
     """
     ~_~
     """
+    
     week_index = (
         data.loc[:, ["week_start", "week_label"]]
         .drop_duplicates()
@@ -312,7 +312,7 @@ def render_empty_state() -> pd.DataFrame:
 
 
 def build_weekly_share_chart_data(weekly_app_totals: pd.DataFrame) -> pd.DataFrame:
-"""
+    """
 Argumente:
     weekly_app_totals (pd.DataFrame):
         Wöchentliche App-Nutzung
@@ -320,7 +320,7 @@ Argumente:
 Rückgabe:
     None:
         Zeigt ein Kreisdiagramm in Streamlit
-"""
+    """
 
     chart_data = weekly_app_totals.loc[:, ["app_name", "weekly_app_minutes"]].copy()
     chart_data["share_label"] = chart_data["weekly_app_minutes"].map(format_minutes)
@@ -353,7 +353,7 @@ Argumente:
 Rückgabe:
     None:
         Zeigt ein Balkendiagramm in Streamlit
-"""
+    """
     
     chart_data = daily_totals.copy()
     chart_data["day_label"] = chart_data["day_date"].dt.strftime("%d.%m.%Y")
