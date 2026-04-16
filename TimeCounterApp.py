@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 DATA_DIR = Path(__file__).parent / "TimeCounterData"
+PIE_CHART_COLORS = ["#005F73", "#EE6C4D", "#FFB703", "#2A9D8F", "#9B2226"]
 INPUT_COLUMNS = [
     "week_label",
     "day_date",
@@ -20,6 +21,7 @@ CALCULATED_COLUMNS = [
 ]
 REQUIRED_COLUMNS = INPUT_COLUMNS + CALCULATED_COLUMNS
 
+
 def build_template_frame() -> pd.DataFrame:
     """
 Argumente:
@@ -27,10 +29,10 @@ Argumente:
 
 Rückgabe:
     pd.DataFrame:
-        Beispiel-Datensatz mit Bildschirmzeit-Daten; 
-        nur am Anfang vor dem Hochladen des echten Datens angezeigt werden (Platzspeicher)
+        Beispiel-Datensatz mit Bildschirmzeit-Daten;
+        nur am Anfang vor dem Hochladen des echten Datensatz angezeigt werden (Platzspeicher)
     """
-    
+
     rows = [
         ["2026-W15", "2026-04-07", "Dienstag", 210, 1, "YouTube", 50],
         ["2026-W15", "2026-04-07", "Dienstag", 210, 2, "WhatsApp", 40],
@@ -49,6 +51,7 @@ Rückgabe:
         ["2026-W15", "2026-04-11", "Samstag", 225, 5, "Spotify", 19],
     ]
     return pd.DataFrame(rows, columns=INPUT_COLUMNS)
+
 
 def format_minutes(minutes: float) -> str:
     """
@@ -94,13 +97,15 @@ Rückgabe:
     rank_count = frame["app_rank"].nunique()
     if rank_count > 5:
         issues.append(
-            f"{source_name}: Mehr als 5 App-Raenge gefunden. Erwartet sind die Top-5 Apps."
+            f"{source_name}: Mehr als 5 App-Ränge gefunden. Erwartet sind die Top-5 Apps."
         )
 
     return issues
 
+
 def has_required_columns(frame: pd.DataFrame) -> bool:
     return set(INPUT_COLUMNS).issubset(frame.columns)
+
 
 def add_calculated_columns(frame: pd.DataFrame) -> pd.DataFrame:
     """
@@ -114,7 +119,7 @@ Rückgabe:
         - weekly_app_minutes
         - weekly_total_minutes
     """
-    
+
     data = frame.copy()
     data["day_date"] = pd.to_datetime(data["day_date"], errors="coerce")
     data["daily_total_minutes"] = pd.to_numeric(data["daily_total_minutes"], errors="coerce")
@@ -140,6 +145,7 @@ Rückgabe:
     data = data.merge(weekly_app_totals, on=["week_label", "week_start", "app_name"], how="left")
     return data.drop(columns=["week_start"])
 
+
 def parse_data(frames: list[pd.DataFrame]) -> pd.DataFrame:
     """
 Argumente:
@@ -164,8 +170,9 @@ Rückgabe:
         data[column] = pd.to_numeric(data[column], errors="coerce")
     return data
 
+
 def read_weekly_csvs(data_dir: Path, uploaded_files
-) -> tuple[pd.DataFrame, list[str], list[str], list[str]]:
+                     ) -> tuple[pd.DataFrame, list[str], list[str], list[str]]:
     """
 Argumente:
     data_dir (Path):
@@ -180,7 +187,7 @@ Rückgabe:
         - list[str] (geladene Dateien)
         - list[str] (Fehler)
     """
-    
+
     csv_files = sorted(data_dir.glob("*.csv")) if data_dir.exists() else []
     uploaded_files = uploaded_files or []
     if not csv_files and not uploaded_files:
@@ -232,16 +239,18 @@ def build_week_selector_options(data: pd.DataFrame) -> list[str]:
     """
     ~_~
     """
-    
+
     week_index = (
         data.loc[:, ["week_start", "week_label"]]
         .drop_duplicates()
         .sort_values("week_start")
     )
     return week_index["week_label"].tolist()
-    
+
+
 def filter_by_week_labels(data: pd.DataFrame, week_labels: list[str]) -> pd.DataFrame:
     return data[data["week_label"].isin(week_labels)]
+
 
 def build_weekly_totals(data: pd.DataFrame) -> pd.DataFrame:
     return (
@@ -251,6 +260,7 @@ def build_weekly_totals(data: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"weekly_total_minutes": "minutes"})
     )
 
+
 def build_daily_totals(data: pd.DataFrame) -> pd.DataFrame:
     return (
         data.drop_duplicates(subset=["week_start", "day_date"])
@@ -259,13 +269,15 @@ def build_daily_totals(data: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"daily_total_minutes": "minutes"})
     )
 
+
 def build_weekly_app_totals(data: pd.DataFrame) -> pd.DataFrame:
     return (
         data.groupby(["week_start", "week_label", "app_name"], as_index=False)["weekly_app_minutes"]
         .max()
         .sort_values(["week_start", "weekly_app_minutes"], ascending=[True, False])
     )
-    
+
+
 def build_stats_table(weekly_totals: pd.DataFrame) -> pd.DataFrame:
     stats = {
         "Kennzahl": [
@@ -284,6 +296,7 @@ def build_stats_table(weekly_totals: pd.DataFrame) -> pd.DataFrame:
         ],
     }
     return pd.DataFrame(stats)
+
 
 def render_empty_state() -> pd.DataFrame:
     template_frame = build_template_frame()
@@ -326,14 +339,19 @@ Rückgabe:
     chart_data["share_label"] = chart_data["weekly_app_minutes"].map(format_minutes)
     return chart_data
 
+
 def render_weekly_share_chart(weekly_app_totals: pd.DataFrame) -> None:
     chart_data = build_weekly_share_chart_data(weekly_app_totals)
     share_chart = (
         alt.Chart(chart_data)
-        .mark_arc(innerRadius=45)
+        .mark_arc(innerRadius=45, stroke="white", strokeWidth=2)
         .encode(
             theta=alt.Theta("weekly_app_minutes:Q", title="Minuten"),
-            color=alt.Color("app_name:N", title="App"),
+            color=alt.Color(
+                "app_name:N",
+                title="App",
+                scale=alt.Scale(range=PIE_CHART_COLORS),
+            ),
             tooltip=[
                 alt.Tooltip("app_name:N", title="App"),
                 alt.Tooltip("weekly_app_minutes:Q", title="Minuten"),
@@ -354,7 +372,7 @@ Rückgabe:
     None:
         Zeigt ein Balkendiagramm in Streamlit
     """
-    
+
     chart_data = daily_totals.copy()
     chart_data["day_label"] = chart_data["day_date"].dt.strftime("%d.%m.%Y")
     daily_chart = (
@@ -478,10 +496,10 @@ else:
     st.info("Waehlen Sie in der Sidebar mindestens eine App aus.")
 
 week_options = weekly_totals.sort_values("week_start")["week_label"].tolist()
-selected_week_label = st.selectbox(
+selected_week_label = st.select_slider(
     "Detailansicht fuer eine Woche",
     options=week_options,
-    index=len(week_options) - 1,
+    value=week_options[-1],
 )
 
 selected_week_data = filtered_data[filtered_data["week_label"] == selected_week_label]
