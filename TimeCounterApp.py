@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -252,6 +251,24 @@ def filter_by_week_labels(data: pd.DataFrame, week_labels: list[str]) -> pd.Data
     return data[data["week_label"].isin(week_labels)]
 
 
+def build_day_selector_frame(data: pd.DataFrame) -> pd.DataFrame:
+    day_selector = (
+        data.loc[:, ["day_date", "day_name", "week_label"]]
+        .drop_duplicates()
+        .sort_values("day_date")
+        .copy()
+    )
+    day_selector["day_label"] = (
+        day_selector["day_name"]
+        + ", "
+        + day_selector["day_date"].dt.strftime("%d.%m.%Y")
+        + " ("
+        + day_selector["week_label"]
+        + ")"
+    )
+    return day_selector
+
+
 def build_weekly_totals(data: pd.DataFrame) -> pd.DataFrame:
     return (
         data.groupby(["week_start", "week_label"], as_index=False)["weekly_total_minutes"]
@@ -275,6 +292,14 @@ def build_weekly_app_totals(data: pd.DataFrame) -> pd.DataFrame:
         data.groupby(["week_start", "week_label", "app_name"], as_index=False)["weekly_app_minutes"]
         .max()
         .sort_values(["week_start", "weekly_app_minutes"], ascending=[True, False])
+    )
+
+
+def build_daily_app_totals(data: pd.DataFrame) -> pd.DataFrame:
+    return (
+        data.groupby(["day_date", "day_name", "app_name"], as_index=False)["daily_app_minutes"]
+        .max()
+        .sort_values(["day_date", "daily_app_minutes"], ascending=[True, False])
     )
 
 
@@ -355,6 +380,29 @@ def render_weekly_share_chart(weekly_app_totals: pd.DataFrame) -> None:
             tooltip=[
                 alt.Tooltip("app_name:N", title="App"),
                 alt.Tooltip("weekly_app_minutes:Q", title="Minuten"),
+                alt.Tooltip("share_label:N", title="Anzeige"),
+            ],
+        )
+    )
+    st.altair_chart(share_chart, use_container_width=True)
+
+
+def render_daily_share_chart(daily_app_totals: pd.DataFrame) -> None:
+    chart_data = daily_app_totals.loc[:, ["app_name", "daily_app_minutes"]].copy()
+    chart_data["share_label"] = chart_data["daily_app_minutes"].map(format_minutes)
+    share_chart = (
+        alt.Chart(chart_data)
+        .mark_arc(innerRadius=45, stroke="white", strokeWidth=2)
+        .encode(
+            theta=alt.Theta("daily_app_minutes:Q", title="Minuten"),
+            color=alt.Color(
+                "app_name:N",
+                title="App",
+                scale=alt.Scale(range=PIE_CHART_COLORS),
+            ),
+            tooltip=[
+                alt.Tooltip("app_name:N", title="App"),
+                alt.Tooltip("daily_app_minutes:Q", title="Minuten"),
                 alt.Tooltip("share_label:N", title="Anzeige"),
             ],
         )
@@ -445,6 +493,19 @@ with st.sidebar:
         options=available_apps,
         default=available_apps,
     )
+    selectable_day_data = filter_by_week_labels(data, selected_week_labels) if selected_week_labels else data.iloc[0:0]
+    day_selector_frame = build_day_selector_frame(selectable_day_data)
+    if day_selector_frame.empty:
+        selected_day_label = None
+        st.caption("Keine Tage fuer die aktuelle Auswahl vorhanden.")
+    else:
+        day_options = day_selector_frame["day_label"].tolist()
+        selected_day_label = st.select_slider(
+            "Datenansicht fuer einen Tag",
+            options=day_options,
+            value=day_options[-1],
+            help="Waehlen Sie hier einen einzelnen Tag fuer die Detailansicht aus.",
+        )
     st.markdown("**Geladene Dateien**")
     for file_name in loaded_files:
         st.write(file_name)
@@ -493,32 +554,26 @@ if selected_apps:
         .sort_index()
     )
 else:
-    st.info("Waehlen Sie in der Sidebar mindestens eine App aus.")
+    st.info("Wählen Sie in der Sidebar mindestens eine App aus.")
 
-week_options = weekly_totals.sort_values("week_start")["week_label"].tolist()
-selected_week_label = st.select_slider(
-    "Detailansicht fuer eine Woche",
-    options=week_options,
-    value=week_options[-1],
-)
-
-selected_week_data = filtered_data[filtered_data["week_label"] == selected_week_label]
-selected_week_daily = build_daily_totals(selected_week_data)
-selected_week_apps = build_weekly_app_totals(selected_week_data)
+selected_day_row = day_selector_frame.loc[day_selector_frame["day_label"] == selected_day_label].iloc[0]
+selected_day_data = filtered_data[filtered_data["day_date"] == selected_day_row["day_date"]]
+selected_day_daily = build_daily_totals(selected_day_data)
+selected_day_apps = build_daily_app_totals(selected_day_data)
 detail_col_1, detail_col_2 = st.columns(2)
 
 with detail_col_1:
-    st.subheader("Tageswerte der ausgewaehlten Woche")
-    render_daily_totals_chart(selected_week_daily)
+    st.subheader(f"Datenansicht fuer {selected_day_label}")
+    render_daily_totals_chart(selected_day_daily)
 
 with detail_col_2:
-    st.subheader("Top-5-Apps der ausgewaehlten Woche")
-    render_weekly_share_chart(selected_week_apps)
+    st.subheader("Top-5-Apps des ausgewaehlten Tages")
+    render_daily_share_chart(selected_day_apps)
     st.dataframe(
-        selected_week_apps.loc[:, ["app_name", "weekly_app_minutes"]].rename(
+        selected_day_apps.loc[:, ["app_name", "daily_app_minutes"]].rename(
             columns={
                 "app_name": "App",
-                "weekly_app_minutes": "Minuten in der Woche",
+                "daily_app_minutes": "Minuten am Tag",
             }
         ),
         hide_index=True,
