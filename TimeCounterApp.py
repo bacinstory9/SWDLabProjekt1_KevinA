@@ -4,14 +4,6 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-"""
-Argumente :
-(Eingabe) = CSV-Dateien namens TimeCounterTemplate.csv
-
-Rückgabe :
-Ausgabe = visuelle Darstellung (Charts + Tabellen)
-"""
-
 DATA_DIR = Path(__file__).parent / "TimeCounterData"
 INPUT_COLUMNS = [
     "week_label",
@@ -28,16 +20,17 @@ CALCULATED_COLUMNS = [
 ]
 REQUIRED_COLUMNS = INPUT_COLUMNS + CALCULATED_COLUMNS
 
-"""
+def build_template_frame() -> pd.DataFrame:
+    """
 Argumente:
     Keine
 
 Rückgabe:
     pd.DataFrame:
-        Beispiel-Datensatz mit Bildschirmzeit-Daten
-"""
-
-def build_template_frame() -> pd.DataFrame:
+        Beispiel-Datensatz mit Bildschirmzeit-Daten; 
+        nur am Anfang vor dem Hochladen des echten Datens angezeigt werden (Platzspeicher)
+    """
+    
     rows = [
         ["2026-W15", "2026-04-07", "Dienstag", 210, 1, "YouTube", 50],
         ["2026-W15", "2026-04-07", "Dienstag", 210, 2, "WhatsApp", 40],
@@ -57,6 +50,7 @@ def build_template_frame() -> pd.DataFrame:
     ]
     return pd.DataFrame(rows, columns=INPUT_COLUMNS)
 
+def format_minutes(minutes: float) -> str:
 """
 Argumente:
     minutes (float):
@@ -68,11 +62,12 @@ Rückgabe:
         -> mit divmod (*Anzahl der Minuten, 60) (durch 60 geteilt werden)
 """
 
-def format_minutes(minutes: float) -> str:
     total_minutes = int(round(minutes))
     hours, mins = divmod(total_minutes, 60)
     return f"{hours} h {mins:02d} min"
 
+
+def validate_frame(frame: pd.DataFrame, source_name: str) -> list[str]:
 """
 Argumente:
     frame (pd.DataFrame):
@@ -85,7 +80,6 @@ Rückgabe:
         Liste von Fehler- oder Warnmeldungen
 """
 
-def validate_frame(frame: pd.DataFrame, source_name: str) -> list[str]:
     issues: list[str] = []
     missing = [column for column in INPUT_COLUMNS if column not in frame.columns]
     if missing:
@@ -105,10 +99,10 @@ def validate_frame(frame: pd.DataFrame, source_name: str) -> list[str]:
 
     return issues
 
-
 def has_required_columns(frame: pd.DataFrame) -> bool:
     return set(INPUT_COLUMNS).issubset(frame.columns)
 
+def add_calculated_columns(frame: pd.DataFrame) -> pd.DataFrame:
 """
 Argumente:
     frame (pd.DataFrame):
@@ -120,8 +114,7 @@ Rückgabe:
         - weekly_app_minutes
         - weekly_total_minutes
 """
-
-def add_calculated_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    
     data = frame.copy()
     data["day_date"] = pd.to_datetime(data["day_date"], errors="coerce")
     data["daily_total_minutes"] = pd.to_numeric(data["daily_total_minutes"], errors="coerce")
@@ -147,6 +140,7 @@ def add_calculated_columns(frame: pd.DataFrame) -> pd.DataFrame:
     data = data.merge(weekly_app_totals, on=["week_label", "week_start", "app_name"], how="left")
     return data.drop(columns=["week_start"])
 
+def parse_data(frames: list[pd.DataFrame]) -> pd.DataFrame:
 """
 Argumente:
     frames (list[pd.DataFrame]):
@@ -157,7 +151,6 @@ Rückgabe:
         Zusammengeführte und bereinigte Daten
 """
 
-def parse_data(frames: list[pd.DataFrame]) -> pd.DataFrame:
     data = pd.concat([add_calculated_columns(frame) for frame in frames], ignore_index=True)
     data["day_date"] = pd.to_datetime(data["day_date"], errors="coerce")
     data["week_start"] = data["day_date"] - pd.to_timedelta(data["day_date"].dt.weekday, unit="D")
@@ -170,6 +163,9 @@ def parse_data(frames: list[pd.DataFrame]) -> pd.DataFrame:
     ]:
         data[column] = pd.to_numeric(data[column], errors="coerce")
     return data
+
+def read_weekly_csvs(data_dir: Path, uploaded_files
+) -> tuple[pd.DataFrame, list[str], list[str], list[str]]:
 
 """
 Argumente:
@@ -185,10 +181,7 @@ Rückgabe:
         - list[str] (geladene Dateien)
         - list[str] (Fehler)
 """
-
-def read_weekly_csvs(
-    data_dir: Path, uploaded_files
-) -> tuple[pd.DataFrame, list[str], list[str], list[str]]:
+    
     csv_files = sorted(data_dir.glob("*.csv")) if data_dir.exists() else []
     uploaded_files = uploaded_files or []
     if not csv_files and not uploaded_files:
@@ -237,17 +230,18 @@ def read_weekly_csvs(
 
 
 def build_week_selector_options(data: pd.DataFrame) -> list[str]:
+    """
+    ~_~
+    """
     week_index = (
         data.loc[:, ["week_start", "week_label"]]
         .drop_duplicates()
         .sort_values("week_start")
     )
     return week_index["week_label"].tolist()
-
-
+    
 def filter_by_week_labels(data: pd.DataFrame, week_labels: list[str]) -> pd.DataFrame:
     return data[data["week_label"].isin(week_labels)]
-
 
 def build_weekly_totals(data: pd.DataFrame) -> pd.DataFrame:
     return (
@@ -257,7 +251,6 @@ def build_weekly_totals(data: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"weekly_total_minutes": "minutes"})
     )
 
-
 def build_daily_totals(data: pd.DataFrame) -> pd.DataFrame:
     return (
         data.drop_duplicates(subset=["week_start", "day_date"])
@@ -266,15 +259,13 @@ def build_daily_totals(data: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"daily_total_minutes": "minutes"})
     )
 
-
 def build_weekly_app_totals(data: pd.DataFrame) -> pd.DataFrame:
     return (
         data.groupby(["week_start", "week_label", "app_name"], as_index=False)["weekly_app_minutes"]
         .max()
         .sort_values(["week_start", "weekly_app_minutes"], ascending=[True, False])
     )
-
-
+    
 def build_stats_table(weekly_totals: pd.DataFrame) -> pd.DataFrame:
     stats = {
         "Kennzahl": [
@@ -293,7 +284,6 @@ def build_stats_table(weekly_totals: pd.DataFrame) -> pd.DataFrame:
         ],
     }
     return pd.DataFrame(stats)
-
 
 def render_empty_state() -> pd.DataFrame:
     template_frame = build_template_frame()
@@ -322,10 +312,6 @@ def render_empty_state() -> pd.DataFrame:
 
 
 def build_weekly_share_chart_data(weekly_app_totals: pd.DataFrame) -> pd.DataFrame:
-    chart_data = weekly_app_totals.loc[:, ["app_name", "weekly_app_minutes"]].copy()
-    chart_data["share_label"] = chart_data["weekly_app_minutes"].map(format_minutes)
-    return chart_data
-
 """
 Argumente:
     weekly_app_totals (pd.DataFrame):
@@ -335,6 +321,10 @@ Rückgabe:
     None:
         Zeigt ein Kreisdiagramm in Streamlit
 """
+
+    chart_data = weekly_app_totals.loc[:, ["app_name", "weekly_app_minutes"]].copy()
+    chart_data["share_label"] = chart_data["weekly_app_minutes"].map(format_minutes)
+    return chart_data
 
 def render_weekly_share_chart(weekly_app_totals: pd.DataFrame) -> None:
     chart_data = build_weekly_share_chart_data(weekly_app_totals)
@@ -353,7 +343,9 @@ def render_weekly_share_chart(weekly_app_totals: pd.DataFrame) -> None:
     )
     st.altair_chart(share_chart, use_container_width=True)
 
-"""
+
+def render_daily_totals_chart(daily_totals: pd.DataFrame) -> None:
+    """
 Argumente:
     daily_totals (pd.DataFrame):
         Tagesdaten
@@ -362,8 +354,7 @@ Rückgabe:
     None:
         Zeigt ein Balkendiagramm in Streamlit
 """
-
-def render_daily_totals_chart(daily_totals: pd.DataFrame) -> None:
+    
     chart_data = daily_totals.copy()
     chart_data["day_label"] = chart_data["day_date"].dt.strftime("%d.%m.%Y")
     daily_chart = (
