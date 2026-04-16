@@ -3,7 +3,13 @@ from pathlib import Path
 import altair as alt
 import pandas as pd
 import streamlit as st
+"""
+Argumente :
+(Eingabe) = CSV-Dateien namens TimeCounterTemplate.csv
 
+Rückgabe :
+Ausgabe = visuelle Darstellung (Charts + Tabellen)
+"""
 
 DATA_DIR = Path(__file__).parent / "TimeCounterData"
 INPUT_COLUMNS = [
@@ -21,6 +27,14 @@ CALCULATED_COLUMNS = [
 ]
 REQUIRED_COLUMNS = INPUT_COLUMNS + CALCULATED_COLUMNS
 
+"""
+Argumente:
+    Keine
+
+Rückgabe:
+    pd.DataFrame:
+        Beispiel-Datensatz mit Bildschirmzeit-Daten
+"""
 
 def build_template_frame() -> pd.DataFrame:
     rows = [
@@ -42,12 +56,33 @@ def build_template_frame() -> pd.DataFrame:
     ]
     return pd.DataFrame(rows, columns=INPUT_COLUMNS)
 
+"""
+Argumente:
+    minutes (float):
+        Zeit in Minuten
+
+Rückgabe:
+    str:
+        Formatierte Zeit als "X h YY min"
+        -> mit divmod (*Anzahl der Minuten, 60) (durch 60 geteilt werden)
+"""
 
 def format_minutes(minutes: float) -> str:
     total_minutes = int(round(minutes))
     hours, mins = divmod(total_minutes, 60)
     return f"{hours} h {mins:02d} min"
 
+"""
+Argumente:
+    frame (pd.DataFrame):
+        Eingelesene CSV-Daten
+    source_name (str):
+        Name der Datei
+
+Rückgabe:
+    list[str]:
+        Liste von Fehler- oder Warnmeldungen
+"""
 
 def validate_frame(frame: pd.DataFrame, source_name: str) -> list[str]:
     issues: list[str] = []
@@ -73,6 +108,17 @@ def validate_frame(frame: pd.DataFrame, source_name: str) -> list[str]:
 def has_required_columns(frame: pd.DataFrame) -> bool:
     return set(INPUT_COLUMNS).issubset(frame.columns)
 
+"""
+Argumente:
+    frame (pd.DataFrame):
+        Rohdaten
+
+Rückgabe:
+    pd.DataFrame:
+        Daten mit berechneten Spalten:
+        - weekly_app_minutes
+        - weekly_total_minutes
+"""
 
 def add_calculated_columns(frame: pd.DataFrame) -> pd.DataFrame:
     data = frame.copy()
@@ -100,6 +146,15 @@ def add_calculated_columns(frame: pd.DataFrame) -> pd.DataFrame:
     data = data.merge(weekly_app_totals, on=["week_label", "week_start", "app_name"], how="left")
     return data.drop(columns=["week_start"])
 
+"""
+Argumente:
+    frames (list[pd.DataFrame]):
+        Liste von DataFrames
+
+Rückgabe:
+    pd.DataFrame:
+        Zusammengeführte und bereinigte Daten
+"""
 
 def parse_data(frames: list[pd.DataFrame]) -> pd.DataFrame:
     data = pd.concat([add_calculated_columns(frame) for frame in frames], ignore_index=True)
@@ -115,6 +170,20 @@ def parse_data(frames: list[pd.DataFrame]) -> pd.DataFrame:
         data[column] = pd.to_numeric(data[column], errors="coerce")
     return data
 
+"""
+Argumente:
+    data_dir (Path):
+        Ordner mit CSV-Dateien
+    uploaded_files:
+        Vom Nutzer hochgeladene Dateien
+
+Rückgabe:
+    tuple:
+        - pd.DataFrame (Daten)
+        - list[str] (Warnungen)
+        - list[str] (geladene Dateien)
+        - list[str] (Fehler)
+"""
 
 def read_weekly_csvs(
     data_dir: Path, uploaded_files
@@ -256,6 +325,15 @@ def build_weekly_share_chart_data(weekly_app_totals: pd.DataFrame) -> pd.DataFra
     chart_data["share_label"] = chart_data["weekly_app_minutes"].map(format_minutes)
     return chart_data
 
+"""
+Argumente:
+    weekly_app_totals (pd.DataFrame):
+        Wöchentliche App-Nutzung
+
+Rückgabe:
+    None:
+        Zeigt ein Kreisdiagramm in Streamlit
+"""
 
 def render_weekly_share_chart(weekly_app_totals: pd.DataFrame) -> None:
     chart_data = build_weekly_share_chart_data(weekly_app_totals)
@@ -274,6 +352,15 @@ def render_weekly_share_chart(weekly_app_totals: pd.DataFrame) -> None:
     )
     st.altair_chart(share_chart, use_container_width=True)
 
+"""
+Argumente:
+    daily_totals (pd.DataFrame):
+        Tagesdaten
+
+Rückgabe:
+    None:
+        Zeigt ein Balkendiagramm in Streamlit
+"""
 
 def render_daily_totals_chart(daily_totals: pd.DataFrame) -> None:
     chart_data = daily_totals.copy()
@@ -408,7 +495,6 @@ selected_week_label = st.selectbox(
 selected_week_data = filtered_data[filtered_data["week_label"] == selected_week_label]
 selected_week_daily = build_daily_totals(selected_week_data)
 selected_week_apps = build_weekly_app_totals(selected_week_data)
-
 detail_col_1, detail_col_2 = st.columns(2)
 
 with detail_col_1:
